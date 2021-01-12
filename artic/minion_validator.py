@@ -191,6 +191,8 @@ def genCommand(sampleID, workflow):
     ]
     if workflow=="medaka":
         cmd.append("--medaka")
+        cmd.append("--medaka-model")
+        cmd.append("r941_min_high_g351")
     if sampleID in extraFlags[workflow]:
         for flag in extraFlags[workflow][sampleID]:
             cmd.append(flag)

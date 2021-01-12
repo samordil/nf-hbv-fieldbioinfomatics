@@ -90,6 +90,11 @@ def get_scheme(scheme_name, scheme_directory, scheme_version="1"):
 
 def run(parser, args):
 
+    # check for medaka-model
+    if args.medaka and (args.medaka_model is None):
+        print(colored.red('Must specify --medaka-model if using the --medaka workflow.'))
+        raise SystemExit(1)
+
     # 1) check the parameters and set up the filenames
     ## find the primer scheme, reference sequence and confirm scheme version
     bed, ref, _ = get_scheme(args.scheme, args.scheme_directory, args.scheme_version)

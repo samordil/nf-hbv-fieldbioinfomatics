@@ -72,6 +72,7 @@ minionCmd_m="artic minion \
             --scheme-directory ${primerSchemes} \
             --read-file ${prefix}_guppyplex_fastq_pass-NB${barcode}.fastq \
             --medaka \
+            --medaka-model r941_min_high_g351 \
             ${primerScheme} \
             ${prefix}"
 
