@@ -16,6 +16,8 @@ This page describes the core pipeline which is run via the `artic minion` comman
 There are **2 workflows** baked into the core pipeline, one which uses signal data (via [nanopolish](https://github.com/jts/nanopolish)) and one that does not (via [medaka](https://github.com/nanoporetech/medaka)). As the workflows are identical in many ways, this page will describe the pipeline as whole and notify the reader when there is dfferent behaviour between the two workflows.
 It should be noted here that by default the `nanopolish` workflow is selected; you need to specify `--medaka` (and `--medaka-model`) if you want the medaka workflow enabled.
 
+> **NOTE**: It is very important that you select the appropriate value for `--medaka-model`.
+
 At the end of each stage, we list here the "useful" stage output files which are kept. There will also be some additional files leftover at the end of the pipeline but these can be ignored (and are hopefully quite intuitively named).
 
 ## Stages
@@ -100,7 +102,7 @@ Finally, we use the `artic_vcf_filter` module to filter the merged variant file 
 
 ### Consensus building
 
-Prior to building a consensus, we use the post-processed alignment from the previous step to check each position of the reference sequence for sample coverage. Any poition that is not covered by at least 20 reads from either read group are marked as low coverage. We use the `artic_make_depth_mask` module for this, which produces coverage information for each read group and also produces a coverage mask to tell us which coordinates in the reference sequence failed the coverage threshold. We use `artic_plot_amplicon_depth` to take the read group depth data and plot amplicon coverage.
+Prior to building a consensus, we use the post-processed alignment from the previous step to check each position of the reference sequence for sample coverage. Any poition that is not covered by at least 20 reads from either read group are marked as low coverage. We use the `artic_make_depth_mask` module for this, which produces coverage information for each read group and also produces a coverage mask to tell us which coordinates in the reference sequence failed the coverage threshold.
 
 Next, to build a consensus sequence for a sample, we require a pre-consensus sequence based on the input reference sequence. The preconsensus has low quality sites masked out with `N`'s using the coverage mask and the `$SAMPLE.fail.vcf` file. We then use `bcftools consensus` to combine the preconsensus with the `$SAMPLE.pass.vcf` variants to produce a consensus sequence for the sample. The consensus sequence has the artic workflow written to its header.
 
@@ -122,6 +124,13 @@ Finally, the consensus sequence is aligned against the reference sequence using 
 | artic_vcf_merge           | combines VCF files from multiple read groups                                                         |
 | artic_vcf_filter          | filters a combined VCF into PASS and FAIL variant files                                              |
 | artic_make_depth_mask     | create a coverage mask from the post-processed alignment                                             |
-| artic_plot_amplicon_depth | plots per amplicon coverage                                                                          |
 | artic_mask                | combines the reference sequence, FAIL variants and coverage mask to produce a pre-consensus sequence |
 | artic_fasta_header        | applies the artic workflow and identifier to the consensus sequence header                           |
+
+## Optional pipeline report
+
+As of version 1.2.0, you can run the artic fork of MultiQC (which should be installed as part of the artic conda environment) and this will produce a report containing amplicon coverage plots and variant call information. To generate a report from within your pipeline output directory:
+
+```
+multiqc .
+```

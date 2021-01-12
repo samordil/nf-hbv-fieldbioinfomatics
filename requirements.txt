@@ -1,10 +1,8 @@
 biopython
 clint
-matplotlib
 pandas
 pysam
 pytest
 pyvcf
 requests
-seaborn
 tqdm

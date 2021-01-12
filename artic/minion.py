@@ -90,6 +90,11 @@ def get_scheme(scheme_name, scheme_directory, scheme_version="1"):
 
 def run(parser, args):
 
+    # check for medaka-model
+    if args.medaka and (args.medaka_model is None):
+        print(colored.red('Must specify --medaka-model if using the --medaka workflow.'))
+        raise SystemExit(1)
+
     # 1) check the parameters and set up the filenames
     ## find the primer scheme, reference sequence and confirm scheme version
     bed, ref, _ = get_scheme(args.scheme, args.scheme_directory, args.scheme_version)
@@ -204,7 +209,6 @@ def run(parser, args):
 
     # 9) get the depth of coverage for each readgroup, create a coverage mask and plots, and add failed variants to the coverage mask (artic_mask must be run before bcftools consensus)
     cmds.append("artic_make_depth_mask --store-rg-depths %s %s.primertrimmed.rg.sorted.bam %s.coverage_mask.txt" % (ref, args.sample, args.sample))
-    cmds.append("artic_plot_amplicon_depth --primerScheme %s --sampleID %s --outFilePrefix %s %s*.depths" % (bed, args.sample, args.sample, args.sample))
     cmds.append("artic_mask %s %s.coverage_mask.txt %s.fail.vcf %s.preconsensus.fasta" % (ref, args.sample, args.sample, args.sample))
 
     # 10) generate the consensus sequence

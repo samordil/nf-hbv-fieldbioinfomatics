@@ -234,6 +234,7 @@ artic minion <scheme> <sample>
 | scheme               | Y        | NA             | The name of the primer scheme                                                                |
 | sample               | Y        | NA             | The name of the sample                                                                       |
 | --medaka             | N        | False          | Use medaka instead of nanopolish for variants                                                |
+| --medaka-model       | -        | NA             | Medaka model to use (required if --medaka set)                                               |
 | --minimap2           | N        | True           | Use minimap2                                                                                 |
 | --bwa                | N        | False          | Use bwa instead of minimap2                                                                  |
 | --normalise          | N        | 100            | Normalise down to moderate coverage to save runtime                                          |

@@ -25,3 +25,5 @@ dependencies:
   - pyvcf=0.6.8
   - samtools=1.10
   - tqdm
+  - pip:
+      - git+https://github.com/will-rowe/MultiQC.git@artic
