@@ -16,6 +16,8 @@ This page describes the core pipeline which is run via the `artic minion` comman
 There are **2 workflows** baked into the core pipeline, one which uses signal data (via [nanopolish](https://github.com/jts/nanopolish)) and one that does not (via [medaka](https://github.com/nanoporetech/medaka)). As the workflows are identical in many ways, this page will describe the pipeline as whole and notify the reader when there is dfferent behaviour between the two workflows.
 It should be noted here that by default the `nanopolish` workflow is selected; you need to specify `--medaka` (and `--medaka-model`) if you want the medaka workflow enabled.
 
+> **NOTE**: It is very important that you select the appropriate value for `--medaka-model`.
+
 At the end of each stage, we list here the "useful" stage output files which are kept. There will also be some additional files leftover at the end of the pipeline but these can be ignored (and are hopefully quite intuitively named).
 
 ## Stages
@@ -124,3 +126,11 @@ Finally, the consensus sequence is aligned against the reference sequence using 
 | artic_make_depth_mask     | create a coverage mask from the post-processed alignment                                             |
 | artic_mask                | combines the reference sequence, FAIL variants and coverage mask to produce a pre-consensus sequence |
 | artic_fasta_header        | applies the artic workflow and identifier to the consensus sequence header                           |
+
+## Optional pipeline report
+
+As of version 1.2.0, you can run the artic fork of MultiQC (which should be installed as part of the artic conda environment) and this will produce a report containing amplicon coverage plots and variant call information. To generate a report from within your pipeline output directory:
+
+```
+multiqc .
+```
