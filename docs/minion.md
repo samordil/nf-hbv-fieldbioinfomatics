@@ -112,7 +112,7 @@ Finally, the consensus sequence is aligned against the reference sequence using 
 
 | file name                  | description                                                           |
 | -------------------------- | --------------------------------------------------------------------- |
-| `$SAMPLE.*.png`            | bar and box plots of amplicon coverage                                |
+| `$SAMPLE.*_mqc.json`       | stats files which MultiQC can use to make a report                    |
 | `$SAMPLE.consensus.fasta`  | the consensus sequence for the input sample                           |
 | `$SAMPLE.muscle.out.fasta` | an alignment of the consensus sequence against the reference sequence |
 
@@ -129,7 +129,7 @@ Finally, the consensus sequence is aligned against the reference sequence using 
 
 ## Optional pipeline report
 
-As of version 1.2.0, you can run the artic fork of MultiQC (which should be installed as part of the artic conda environment) and this will produce a report containing amplicon coverage plots and variant call information. To generate a report from within your pipeline output directory:
+As of version 1.2.1, if you run the pipeline with `--strict`, you can run MultiQC (which should be installed as part of the artic conda environment) on the pipeline output directory and this will produce a report containing amplicon coverage plots and variant call information. To generate a report from within your pipeline output directory:
 
 ```
 multiqc .
