@@ -40,6 +40,7 @@ setup(
             'artic_make_depth_mask=artic.make_depth_mask:main',
             'artic_fasta_header=artic.fasta_header:main',
             'artic_mask=artic.mask:main',
+            'artic_get_stats=artic.artic_mqc:main',
         ],
     },
     author_email="n.j.loman@bham.ac.uk",
