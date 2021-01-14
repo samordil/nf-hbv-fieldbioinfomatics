@@ -183,13 +183,15 @@ def run(parser, args):
     # 8) check and filter the VCFs
     ## if using strict, run the vcf checker to remove vars present only once in overlap regions (this replaces the original merged vcf from the previous step)
     if args.strict:
-        cmds.append("artic-tools check_vcf --dropPrimerVars --dropOverlapFails --vcfOut %s.merged.filtered.vcf %s.merged.vcf %s 2> %s.vcfreport.txt" % (args.sample, args.sample, bed, args.sample))
+        cmds.append("bgzip -f %s.merged.vcf" % (args.sample))
+        cmds.append("tabix -p vcf %s.merged.vcf.gz" % (args.sample))
+        cmds.append("artic-tools check_vcf --dropPrimerVars --dropOverlapFails --vcfOut %s.merged.filtered.vcf %s.merged.vcf.gz %s 2> %s.vcfreport.txt" % (args.sample, args.sample, bed, args.sample))
         cmds.append("mv %s.merged.filtered.vcf %s.merged.vcf" % (args.sample, args.sample))
 
     ## if doing the medaka workflow and longshot required, do it on the merged VCF
     if args.medaka and not args.no_longshot:
         cmds.append("bgzip -f %s.merged.vcf" % (args.sample))
-        cmds.append("tabix -p vcf %s.merged.vcf.gz" % (args.sample))
+        cmds.append("tabix -f -p vcf %s.merged.vcf.gz" % (args.sample))
         cmds.append("longshot -P 0 -F -A --no_haps --bam %s.primertrimmed.rg.sorted.bam --ref %s --out %s.merged.vcf --potential_variants %s.merged.vcf.gz" % (args.sample, ref, args.sample, args.sample))
 
     ## set up some name holder vars for ease
@@ -220,7 +222,11 @@ def run(parser, args):
     cmds.append("cat %s.consensus.fasta %s > %s.muscle.in.fasta" % (args.sample, ref, args.sample))
     cmds.append("muscle -in %s.muscle.in.fasta -out %s.muscle.out.fasta" % (args.sample, args.sample))
 
-    # 12) setup the log file and run the pipeline commands
+    # 12) get some QC stats
+    if args.strict:
+        cmds.append("artic_get_stats --scheme {} --align-report {}.alignreport.txt --vcf-report {}.vcfreport.txt {}" .format(bed, args.sample, args.sample, args.sample))
+
+    # 13) setup the log file and run the pipeline commands
     log = "%s.minion.log.txt" % (args.sample)
     logfh = open(log, 'w')
     for cmd in cmds:
