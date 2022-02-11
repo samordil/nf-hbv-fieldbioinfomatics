@@ -66,22 +66,12 @@ def get_scheme(scheme_name, scheme_directory, scheme_version="1"):
         The version being used
     """
     # try getting the version from the scheme name (old behaviour)
-    if scheme_name.find("/V") != -1:
-        scheme_name, scheme_version = scheme_name.split("/V")
+    if scheme_name.find('/V') != -1:
+        scheme_name, scheme_version = scheme_name.split('/V')
 
     # create the filenames and check they exist
-    bed = "%s/%s/V%s/%s.scheme.bed" % (
-        scheme_directory,
-        scheme_name,
-        scheme_version,
-        scheme_name,
-    )
-    ref = "%s/%s/V%s/%s.reference.fasta" % (
-        scheme_directory,
-        scheme_name,
-        scheme_version,
-        scheme_name,
-    )
+    bed = "%s/%s/V%s/%s.scheme.bed" % (scheme_directory, scheme_name, scheme_version, scheme_name)
+    ref = "%s/%s/V%s/%s.reference.fasta" % ( scheme_directory, scheme_name, scheme_version, scheme_name)
     if os.path.exists(bed) and os.path.exists(ref):
         return bed, ref, scheme_version
 
@@ -93,11 +83,12 @@ def get_scheme(scheme_name, scheme_directory, scheme_version="1"):
         file=sys.stderr,
     )
 
-    with requests.get(
-        "https://raw.githubusercontent.com/artic-network/primer-schemes/master/schemes_manifest.json"
-    ) as fh:
-        manifest = fh.json()
-    
+    try:
+        manifest = requests.get("https://raw.githubusercontent.com/artic-network/primer-schemes/master/schemes_manifest.json").json()
+    except requests.exceptions.RequestException as error:
+        print("Manifest Exception:", error)
+        SystemExit(2)
+
     for scheme, scheme_contents in dict(manifest["schemes"]).items():
         if scheme == scheme_name.lower() or scheme_name.lower() in scheme_contents["aliases"]:
             print(
@@ -126,11 +117,11 @@ def get_scheme(scheme_name, scheme_directory, scheme_version="1"):
 
             os.makedirs(os.path.dirname(bed), exist_ok=True)
             with requests.get(scheme_contents["primer_urls"][scheme_version]) as fh:
-                open(bed, 'wb').write(fh.content)
+                open(bed, 'wt').write(fh.text)
             
             os.makedirs(os.path.dirname(ref), exist_ok=True)
             with requests.get(scheme_contents["reference_urls"][scheme_version]) as fh:
-                open(ref, 'wb').write(fh.content)
+                open(ref, 'wt').write(fh.text)
             
             check_scheme_hashes(bed, scheme_contents["primer_sha256_checksums"][scheme_version])
             check_scheme_hashes(ref, scheme_contents["reference_sha256_checksums"][scheme_version])
