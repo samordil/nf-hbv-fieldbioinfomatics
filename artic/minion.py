@@ -87,7 +87,7 @@ def get_scheme(scheme_name, scheme_directory, scheme_version="1"):
         manifest = requests.get("https://raw.githubusercontent.com/artic-network/primer-schemes/master/schemes_manifest.json").json()
     except requests.exceptions.RequestException as error:
         print("Manifest Exception:", error)
-        SystemExit(2)
+        raise SystemExit(2)
 
     for scheme, scheme_contents in dict(manifest["schemes"]).items():
         if scheme == scheme_name.lower() or scheme_name.lower() in scheme_contents["aliases"]:
