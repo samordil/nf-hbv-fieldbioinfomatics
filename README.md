@@ -32,7 +32,7 @@ There are **2 workflows** baked into this pipeline, one which uses signal data (
 ### Via conda
 
 ```sh
-conda install -c bioconda artic
+conda install -c bioconda -c conda-forge artic
 ```
 
 ### Via source
