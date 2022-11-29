@@ -18,7 +18,7 @@ def getPrimerDirection(primerID):
     """
     if 'LEFT' in primerID:
         return '+'
-    elif 'RIGHT':
+    elif 'RIGHT' in primerID:
         return '-'
     else:
         print("LEFT/RIGHT must be specified in Primer ID", file=sys.stderr)
