@@ -143,9 +143,22 @@ def go(args):
     except Exception as e:
         print(e)
         raise SystemExit(1)
+    
+    # Decircularize the reference sequence if asked
+    if args.de_circ_reflength > 0:
+        seqID = seqID.replace("_circular", "")
+        
+        decirc_depth = [0] * args.de_circ_reflength
+        for circ_index, depth in enumerate(depths):
+            decirc_index = circ_index % args.de_circ_reflength
+            decirc_depth[decirc_index] += depth
+        
+        depths = decirc_depth
+        
 
     # check the number of positions in the reported depths matches the reference sequence
-    if len(depths) != seqLength:
+    # only Check if not decircularizing
+    if args.de_circ_reflength == 0 and len(depths) != seqLength:
         print("pileup length did not match expected reference sequence length")
 
     # print the readgroup depths to individual files if requested
@@ -186,6 +199,9 @@ def main():
     parser.add_argument('--store-rg-depths',
                         action='store_true', default=False,
                         help='if set, positional depth counts for each readgroup written to file (filename = <outfile>.<readgroup>.depths)')
+    parser.add_argument('--de-circ-reflength',
+                        type=int, default=0,
+                        help='If non-zero, the reference sequence will be decircularized to this length')
     parser.add_argument('reference')
     parser.add_argument('bamfile')
     parser.add_argument('outfile')
