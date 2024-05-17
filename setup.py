@@ -41,6 +41,7 @@ setup(
             'artic_fasta_header=artic.fasta_header:main',
             'artic_mask=artic.mask:main',
             'artic_get_stats=artic.artic_mqc:main',
+            'artic_circular=artic.circular:main',
         ],
     },
     author_email="n.j.loman@bham.ac.uk",
