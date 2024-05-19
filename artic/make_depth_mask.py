@@ -160,10 +160,14 @@ def go(args):
     # only Check if not decircularizing
     if args.de_circ_reflength == 0 and len(depths) != seqLength:
         print("pileup length did not match expected reference sequence length")
+    
+    # Write out the depths
+    with open(args.outfile + ".depths", 'w') as fh:
+        for pos, depth in enumerate(depths):
+            fh.write("%s\t%d\t%d\n" % (seqID, pos, depth))
 
     # print the readgroup depths to individual files if requested
     if args.store_rg_depths:
-
         # rg is the readgroup and rgd is the depths per position for this readgroup
         for rg, rgd in rgDepths.items():
             fh = open(args.outfile + "." + rg + ".depths", 'w')
