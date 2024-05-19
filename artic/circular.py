@@ -160,28 +160,75 @@ def decirc_vcf(args):
 
     for record in records:
         vcf_writer.write_record(record)
+    
+
+def parse_fail_vcf(args):
+    # Load the reference genome
+    lref = SeqIO.read(args.lref, "fasta")
+    lref_len = len(lref)
+
+    # Load the linear pass vcf
+    pass_vcf = vcf.Reader(open(args.pass_vcf, "r"), filename=args.pass_vcf)
+    pass_records = {}
+    for record in pass_vcf:
+        pass_records[(record.CHROM, record.POS)] = record
+
+    # Read in the fail vcf
+    fail_vcf = vcf.Reader(open(args.fail_vcf, "r"), filename=args.fail_vcf)
+    fail_vcf_writer = vcf.Writer(
+        open(args.output, "w"),
+        fail_vcf,
+        lineterminator="\n",
+    )
+    for failrecord in fail_vcf:
+        # Remap the fail record to the linear reference genome
+        if failrecord.ALT[0] != ".":
+            failrecord.POS = (int(failrecord.POS - 1) % int(lref_len)) + 1
+            failrecord.CHROM = lref.id.strip()
+        
+        # Check if the position is in the pass vcf
+        if (failrecord.CHROM, failrecord.POS) not in pass_records:
+            fail_vcf_writer.write_record(failrecord)
 
 
 
 # This takes the consensus genome generated from the circular reference genome and maps the circular coordinates back to the linear reference genome
 def main():
-    parser = argparse.ArgumentParser(
-        description="Create a circular reference genome and update the primer bedfile"
+    global_parser = argparse.ArgumentParser(
+        description="Tools for handling circular genomes",
     )
-    parser.add_argument(
+    subparsers = global_parser.add_subparsers(
+        title="subcommands", help="scheme types", required=True
+    )
+    parse_vcf_parser = subparsers.add_parser("parse-vcf", help="map a circular genome back to linear coords")
+    parse_vcf_parser.add_argument(
         "--vcf",
         type=str,
         help="The vcf generated from the circular reference genome",
         required=True,
     )
-    parser.add_argument(
+    parse_vcf_parser.add_argument(
         "--reference",
         "-r",
         type=str,
         help="The reference genome in fasta format",
         required=True,
     )
-    parser.add_argument("-o", "--output", type=str, help="The output vcf file",required=True)
-    args = parser.parse_args()
-    decirc_vcf(args)
+    parse_vcf_parser.add_argument("-o", "--output", type=str, help="The output vcf file",required=True)
+    parse_vcf_parser.set_defaults(func=decirc_vcf)
 
+    # Parse and De-dupe fail/vcf
+    de_dupe_vcf_parser = subparsers.add_parser("dedupe-vcf", help="Removed fail positions in a valid vcf")
+    de_dupe_vcf_parser.add_argument("--pass-vcf", type=str, help = "The linear pass.vcf")
+    de_dupe_vcf_parser.add_argument("--fail-vcf", type=str, help = "The fail.vcf")
+    de_dupe_vcf_parser.add_argument("--lref", type=str, help = "The linear referance genome")
+    de_dupe_vcf_parser.add_argument("-o", "--output", type=str, help="The output vcf file",required=True)
+    de_dupe_vcf_parser.set_defaults(func = parse_fail_vcf)
+    
+    # Run 
+    args = global_parser.parse_args()
+    args.func(args)
+
+    
+if __name__ == "__main__":
+    main()

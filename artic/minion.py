@@ -217,19 +217,22 @@ def run(parser, args):
     method = 'medaka'
 
     vcf_file = "%s.pass.vcf" % (args.sample)
+    fail_vcf_file = "%s.fail.vcf" % (args.sample)
 
 
-    ## filter the variants to produce PASS and FAIL lists, then index them
+    ## filter the variants to produce PASS and FAIL lists, then index them    
     if args.no_frameshifts and not args.no_indels:
-        cmds.append("artic_vcf_filter --%s --no-frameshifts %s.merged.vcf %s.pass.vcf %s.fail.vcf" % (method, args.sample, args.sample, args.sample))
+        cmds.append("artic_vcf_filter --%s --no-frameshifts %s.merged.vcf %s %s " % (method, args.sample, vcf_file, fail_vcf_file))
     else:
-        cmds.append("artic_vcf_filter --%s %s.merged.vcf %s.pass.vcf %s.fail.vcf" % (method, args.sample, args.sample, args.sample))
+        cmds.append("artic_vcf_filter --%s %s.merged.vcf %s %s" % (method, args.sample, vcf_file, fail_vcf_file))
     
     # Modify the vcf.pass
     if args.circular:
-        cmds.append("artic_circular --vcf %s --reference %s --output %s"% (vcf_file, lref, vcf_file+".mod.vcf")) # Writes vcf.mod
-        vcf_file = vcf_file+".mod.vcf"
-    
+        cmds.append("artic_circular parse-vcf --vcf %s --reference %s --output %s"% (vcf_file, lref, vcf_file + ".mod.vcf")) # Writes vcf
+        cmds.append("artic_circular dedupe-vcf --pass-vcf %s --fail-vcf %s --lref %s --output %s"% (vcf_file, fail_vcf_file, lref, fail_vcf_file + ".mod.vcf")) # Writes vcf
+        vcf_file = vcf_file + ".mod.vcf"
+        fail_vcf_file = fail_vcf_file + ".mod.vcf"
+
     cmds.append("bgzip -f %s" % (vcf_file))
     cmds.append("tabix -p vcf %s.gz" % (vcf_file))
 
@@ -237,11 +240,11 @@ def run(parser, args):
     if args.circular:
         # modulo the depth mask to turn circular indexing back into linear
         cmds.append("artic_make_depth_mask --store-rg-depths %s --de-circ-reflength %s %s.primertrimmed.rg.sorted.bam %s.coverage_mask.txt" % (ref, reflen, args.sample, args.sample))
-        cmds.append("artic_mask --de-circ-reflength %s %s %s.coverage_mask.txt %s.fail.vcf %s.preconsensus.fasta" % (reflen, lref, args.sample, args.sample, args.sample))
+        cmds.append("artic_mask %s %s.coverage_mask.txt %s  %s.preconsensus.fasta" % (lref, args.sample,fail_vcf_file, args.sample))
         
     else:
         cmds.append("artic_make_depth_mask --store-rg-depths %s %s.primertrimmed.rg.sorted.bam %s.coverage_mask.txt" % (ref, args.sample, args.sample))
-        cmds.append("artic_mask %s %s.coverage_mask.txt %s.fail.vcf %s.preconsensus.fasta" % (ref, args.sample, args.sample, args.sample))
+        cmds.append("artic_mask %s %s.coverage_mask.txt %s %s.preconsensus.fasta" % (ref, args.sample, fail_vcf_file, args.sample))
 
     # 10) generate the consensus sequence
     cmds.append("bcftools consensus -f %s.preconsensus.fasta %s.gz -m %s.coverage_mask.txt -o %s.consensus.fasta" % (args.sample, vcf_file, args.sample, args.sample))

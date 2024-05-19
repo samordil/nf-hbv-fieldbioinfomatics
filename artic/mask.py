@@ -34,12 +34,6 @@ def go(args):
     sett = set()
     vcf_reader = vcf.Reader(open(args.maskvcf, 'r'))
     for record in vcf_reader:
-
-        if args.de_circ_reflength != 0:
-            # Remap the record into the orignal ref
-            record.POS = (int(record.POS - 1) % args.de_circ_reflength) + 1
-            record.CHROM = record.CHROM.replace("_circular", "")
-
         for n in range(0, len(record.REF)):
             cons[record.CHROM][record.POS-1+n] = 'N'
 
@@ -52,7 +46,6 @@ def go(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--de-circ-reflength", type=int, default=0)
     parser.add_argument('reference')
     parser.add_argument('maskfile')
     parser.add_argument('maskvcf')
