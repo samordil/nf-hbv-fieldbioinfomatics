@@ -229,8 +229,8 @@ def run(parser, args):
     # Modify the vcf.pass
     if args.circular:
         cmds.append("artic_circular parse-vcf --vcf %s --reference %s --output %s"% (vcf_file, lref, vcf_file + ".mod.vcf")) # Writes vcf
-        cmds.append("artic_circular dedupe-vcf --pass-vcf %s --fail-vcf %s --lref %s --output %s"% (vcf_file, fail_vcf_file, lref, fail_vcf_file + ".mod.vcf")) # Writes vcf
         vcf_file = vcf_file + ".mod.vcf"
+        cmds.append("artic_circular dedupe-vcf --pass-vcf %s --fail-vcf %s --lref %s --output %s"% (vcf_file, fail_vcf_file, lref, fail_vcf_file + ".mod.vcf")) # Writes vcf
         fail_vcf_file = fail_vcf_file + ".mod.vcf"
 
     cmds.append("bgzip -f %s" % (vcf_file))
