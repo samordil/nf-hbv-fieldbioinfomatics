@@ -171,7 +171,8 @@ def parse_fail_vcf(args):
     pass_vcf = vcf.Reader(open(args.pass_vcf, "r"), filename=args.pass_vcf)
     pass_records = {}
     for record in pass_vcf:
-        pass_records[(record.CHROM, record.POS)] = record
+        for i, _base in enumerate(record.REF):
+            pass_records[(record.CHROM, record.POS+i)] = record
 
     # Read in the fail vcf
     fail_vcf = vcf.Reader(open(args.fail_vcf, "r"), filename=args.fail_vcf)
