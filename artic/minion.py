@@ -246,6 +246,9 @@ def run(parser, args):
         cmds.append("artic_make_depth_mask --store-rg-depths %s %s.primertrimmed.rg.sorted.bam %s.coverage_mask.txt" % (ref, args.sample, args.sample))
         cmds.append("artic_mask %s %s.coverage_mask.txt %s %s.preconsensus.fasta" % (ref, args.sample, fail_vcf_file, args.sample))
 
+    # Create QC depth plots
+    cmds.append("artic_make_depth_plot --depth %s.coverage_mask.txt.depth --min-depth 20 --output %s.coverage_mask.txt.depth" % (args.sample, args.sample))
+
     # 10) generate the consensus sequence
     cmds.append("bcftools consensus -f %s.preconsensus.fasta %s.gz -m %s.coverage_mask.txt -o %s.consensus.fasta" % (args.sample, vcf_file, args.sample, args.sample))
 
