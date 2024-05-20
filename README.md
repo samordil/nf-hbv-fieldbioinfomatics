@@ -1,89 +1,48 @@
-<div align="center">
-    <img src="docs/artic-logo.png?raw=true?" alt="artic-logo" width="250">
-    <h1>ARTIC</h1>
-    <h3>a bioinformatics pipeline for working with virus sequencing data sequenced with nanopore</h3>
-    <hr>
-    <a href="https://travis-ci.org/artic-network/fieldbioinformatics"><img src="https://travis-ci.org/artic-network/fieldbioinformatics.svg?branch=master" alt="travis"></a>
-    <a href='http://artic.readthedocs.io/en/latest/?badge=latest'><img src='https://readthedocs.org/projects/artic/badge/?version=latest' alt='Documentation Status'></a>
-    <a href="https://bioconda.github.io/recipes/artic/README.html"><img src="https://anaconda.org/bioconda/artic/badges/downloads.svg" alt="bioconda"></a>
-    <a href="https://github.com/artic-network/fieldbioinformatics/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-orange.svg" alt="License"></a>
-</div>
+# HBV-fieldbioinfomatics
 
----
+This project is a custom fork of fieldbioinfomatics, to enable the analysis of circular genomes and corresponding circular primer schemes, such as HBV. 
 
-## Overview
+Due to time constraints this mode has only been applied/tested for one running mode;
+- minimap2
+- medaka
+- hbv-600/V2.1.0L (PrimerScheme)
 
-`artic` is a pipeline and set of accompanying tools for working with viral nanopore sequencing data, generated from tiling amplicon schemes.
 
-It is designed to help run the artic bioinformatics protocols; for example the [SARS-CoV-2 coronavirus protocol](https://artic.network/ncov-2019/ncov2019-bioinformatics-sop.html).
+### Overview of changes
 
-Features include:
+This mode takes the amplicon which spans the `end -> start` of the genome, and appends the sequence to the 3' end of the reference to create `>{refID}_circular`
 
-- read filtering
-- primer trimming
-- amplicon coverage normalisation
-- variant calling
-- consensus building
+1. Reads are mapped to this new circular reference genome
+2. Pipeline continues normally with variant calling, etc
+3. `circular.py parse-vcf`: takes the pass.vcf file and maps the extended positions back into the linear reference using `modulo` to create `{}.mod.vcf`
+4. `circular.py dedupe-vcf`: Step 3 enables the same vcf record to exist in `pass.vcf` and `fail.vcf` leading to errors in consensus generation. This command maps the fail vcf back to linear and removes fail.vcf records with the same coord as in in `vcf.pass.mod.vcf`
 
-There are **2 workflows** baked into this pipeline, one which uses signal data (via [nanopolish](https://github.com/jts/nanopolish)) and one that does not (via [medaka](https://github.com/nanoporetech/medaka)).
+### Installation
 
-## Installation
+Currently, the only installation method is from the source
 
-### Via conda
-
+#### 1. Downloading the source:
 ```sh
-conda install -c bioconda -c conda-forge artic
+git clone https://github.com/ChrisgKent/hbv-fieldbioinfomatics
+cd hbv-fieldbioinfomatics
 ```
-
-If conda reports that nothing provides particular packages when running the above command ensure your `channel_priority` is set to `flexible` using the following command:
-
-```sh
-conda config --set channel_priority false
-```
-
-### Via source
-
-#### 1. downloading the source:
-
-Download a [release](https://github.com/artic-network/fieldbioinformatics/releases) or use the latest master (which tracks the current release):
-
-```sh
-git clone https://github.com/artic-network/fieldbioinformatics
-cd fieldbioinformatics
-```
-
-#### 2. installing dependencies:
-
-The `artic pipeline` has several [software dependencies](https://github.com/artic-network/fieldbioinformatics/blob/master/environment.yml). You can solve these dependencies using the minimal conda environment we have provided:
-
+#### 2. Installing dependencies:
 ```sh
 conda env create -f environment.yml
-conda activate artic
+conda activate hbv-artic
 ```
-
-#### 3. installing the pipeline:
-
+#### 3. Installing the pipeline:
 ```sh
 python setup.py install
 ```
-
-#### 4. testing the pipeline:
-
-First check the pipeline can be called.
-
-```
+#### 4. Test the pipeline:
+```sh
 artic -v
 ```
 
-You can try the pipeline tests.
 
+
+### Example
+```sh
+artic minion --circular --medaka --normalise 400 --threads 8 --scheme-directory ~/hbv-fieldbioinfomatics/primerschemes --read-file {}  --medaka-model r1041_e82_400bps_hac_v4.3.0 hbv-600/V2.1.0L output/barcode13
 ```
-./test-runner.sh nanopolish
-./test-runner.sh medaka
-```
-
-For further tests, such as the variant validation tests, check [the documentation](http://artic.readthedocs.io/en/latest/tests?badge=latest).
-
-## Documentation
-
-Documentation for the `artic pipeline` is available via [read the docs](http://artic.readthedocs.io/en/latest/?badge=latest).
