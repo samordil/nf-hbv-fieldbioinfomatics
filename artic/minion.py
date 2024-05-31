@@ -164,7 +164,11 @@ def run(parser, args):
     # 2) Nanopolish. Removed
 
     # 3) index the ref & align with minimap
-    cmds.append("minimap2 -a -x map-ont -t %s %s %s | samtools view -bS -F 4 - | samtools sort -o %s.sorted.bam -" % (args.threads, ref, read_file, args.sample))
+    cmds.append("minimap2 -a -x map-ont -t %s %s %s | samtools sort -o %s.all.sorted.bam " % (args.threads, ref, read_file, args.sample))
+    # get mapping stats
+    cmds.append("samtools flagstat %s.all.sorted.bam -O json > %s.mappingstats.json" % (args.sample, args.sample))
+    # Filter out unmapped reads then delete all.bam
+    cmds.append("samtools view -bS -F 4 %s.all.sorted.bam > %s.sorted.bam && rm %s.all.sorted.bam"  % (args.sample, args.sample,  args.sample))
     cmds.append("samtools index %s.sorted.bam" % (args.sample,))
 
     # 4) trim the alignments to the primer start sites and normalise the coverage to save time
@@ -261,6 +265,9 @@ def run(parser, args):
     # 12) get some QC stats
     if args.strict:
         cmds.append("artic_get_stats --scheme {} --align-report {}.alignreport.txt --vcf-report {}.vcfreport.txt {}" .format(bed, args.sample, args.sample, args.sample))
+
+    # Create a qc tsv
+    cmds.append("artic_qc_report --mappingstats %s.mappingstats.json --consensus %s.consensus.fasta --output %s.qc.report.tsv" % (args.sample, args.sample, args.sample))
 
     # 13) setup the log file and run the pipeline commands
     log = "%s.minion.log.txt" % (args.sample)
