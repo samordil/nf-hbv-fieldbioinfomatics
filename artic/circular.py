@@ -182,13 +182,20 @@ def parse_fail_vcf(args):
         lineterminator="\n",
     )
     for failrecord in fail_vcf:
+        write_fail = True
         # Remap the fail record to the linear reference genome
         if failrecord.ALT[0] != ".":
             failrecord.POS = (int(failrecord.POS - 1) % int(lref_len)) + 1
             failrecord.CHROM = lref.id.strip()
         
         # Check if the position is in the pass vcf
-        if (failrecord.CHROM, failrecord.POS) not in pass_records:
+        
+        for i, _ in  enumerate(str(failrecord.ALT[0])):
+            if (failrecord.CHROM, failrecord.POS + i) in pass_records:
+                write_fail = False
+                break
+        
+        if write_fail:
             fail_vcf_writer.write_record(failrecord)
 
 
