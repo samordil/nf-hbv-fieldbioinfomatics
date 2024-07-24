@@ -25,8 +25,8 @@ def vcf_merge(args):
 
     vcf_reader = vcf.Reader(filename=first_vcf)
     vcf_reader.infos["Pool"] = vcf.parser._Format("Pool", 1, "String", "The pool name")
-    vcf_writer = vcf.Writer(open(args.prefix + ".merged.vcf", "w"), vcf_reader)
-    vcf_writer_primers = vcf.Writer(open(args.prefix + ".primers.vcf", "w"), vcf_reader)
+    vcf_writer = vcf.Writer(open(args.output_merged, "w"), vcf_reader)
+    vcf_writer_primers = vcf.Writer(open(args.output_primers, "w"), vcf_reader)
 
     variants = []
     for file_name, pool_name in pool_map.items():
@@ -58,6 +58,8 @@ def main():
     parser.add_argument("prefix")
     parser.add_argument("bedfile")
     parser.add_argument("vcflist", nargs="+")
+    parser.add_argument("--output_merged", default=None)
+    parser.add_argument("--output_primers", default=None)
 
     args = parser.parse_args()
     vcf_merge(args)

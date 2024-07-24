@@ -5,7 +5,7 @@
 
 import argparse
 import sys
-
+import pathlib
 from . import version
 
 
@@ -20,8 +20,6 @@ def run_subtool(parser, args):
         from . import minion as submodule
     if args.command == "gather":
         from . import gather as submodule
-    if args.command == "guppyplex":
-        from . import guppyplex as submodule
     if args.command == "rampart":
         from . import rampart as submodule
     if args.command == "filter":
@@ -112,9 +110,6 @@ def init_pipeline_parser():
         "minion", help="Run the alignment/variant-call/consensus pipeline"
     )
     parser_minion.add_argument(
-        "scheme", metavar="scheme", help="The name of the scheme"
-    )
-    parser_minion.add_argument(
         "sample", metavar="sample", help="The name of the sample"
     )
     parser_minion.add_argument(
@@ -158,29 +153,26 @@ def init_pipeline_parser():
     parser_minion.add_argument(
         "--scheme-directory",
         metavar="scheme_directory",
-        default="./primer-schemes",
+        default=pathlib.Path("./primer-schemes"),
         help="Default scheme directory",
+        type=pathlib.Path,
+    )
+    parser_minion.add_argument(
+        "--scheme-name", metavar="scheme-name", help="Name of the scheme", required=True
     )
     parser_minion.add_argument(
         "--scheme-version",
         metavar="scheme_version",
-        default=1,
-        help="Primer scheme version (default: %(default)d)",
+        help="Primer scheme version",
+        required=True,
     )
     parser_minion.add_argument(
-        "--max-haplotypes",
-        type=int,
-        default=1000000,
-        metavar="max_haplotypes",
-        help="max-haplotypes value for nanopolish",
-    )
-    parser_minion.add_argument(
-        "--read-file",
-        metavar="read_file",
-        help="Use alternative FASTA/FASTQ file to <sample>.fasta",
-    )
-    parser_minion.add_argument(
-        "--sequencing-summary", help="Path to Guppy sequencing summary"
+        "--read-files",
+        metavar="read_files",
+        help="The read files to process",
+        type=pathlib.Path,
+        nargs="+",
+        required=True,
     )
     parser_minion.add_argument(
         "--no-indels",
@@ -200,6 +192,15 @@ def init_pipeline_parser():
     )
     parser_minion.add_argument(
         "--circular", action="store_true", help="Process circular genomes"
+    )
+    parser_minion.add_argument(
+        "--output",
+        help="Output directory",
+        default=pathlib.Path("./output"),
+        type=pathlib.Path,
+    )
+    parser_minion.add_argument(
+        "--clair3", action="store_true", help="Use Clair3 for variant calling"
     )
     parser_minion.set_defaults(func=run_subtool)
 
@@ -245,55 +246,6 @@ def init_pipeline_parser():
     )
     parser_gather.add_argument("--limit", type=int, help="Only gather n reads")
     parser_gather.set_defaults(func=run_subtool)
-
-    # guppyplex
-    # This is a workflow that aggregates the previous gather and demultiplex steps into a single task.
-    # This is making an assumption that the results from MinKnow demultiplex are good-enough.
-    parser_guppyplex = subparsers.add_parser(
-        "guppyplex", help="Aggregate pre-demultiplexed reads from MinKNOW/Guppy"
-    )
-    parser_guppyplex.add_argument(
-        "--directory",
-        metavar="directory",
-        help="Basecalled and demultiplexed (guppy) results directory",
-        required=True,
-    )
-    parser_guppyplex.add_argument(
-        "--max-length",
-        type=int,
-        metavar="max_length",
-        help="remove reads greater than read length",
-    )
-    parser_guppyplex.add_argument(
-        "--min-length",
-        type=int,
-        metavar="min_length",
-        help="remove reads less than read length",
-    )
-    parser_guppyplex.add_argument(
-        "--quality",
-        type=float,
-        metavar="quality",
-        default=7,
-        help="remove reads against this quality filter",
-    )
-    parser_guppyplex.add_argument(
-        "--sample",
-        type=float,
-        metavar="sample",
-        default=1,
-        help="sampling frequency for random sample of sequence to reduce excess",
-    )
-    parser_guppyplex.add_argument(
-        "--skip-quality-check",
-        action="store_true",
-        help="Do not filter on quality score (speeds up)",
-    )
-    parser_guppyplex.add_argument("--prefix", help="Prefix for guppyplex files")
-    parser_guppyplex.add_argument(
-        "--output", metavar="output", help="FASTQ file to write"
-    )
-    parser_guppyplex.set_defaults(func=run_subtool)
 
     # filter
     parser_filter = subparsers.add_parser("filter", help="Filter FASTQ files by length")

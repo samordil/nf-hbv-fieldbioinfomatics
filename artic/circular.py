@@ -1,10 +1,10 @@
 # Writen for the HBV analysis of circular genomes
 # Chris Kent
 
-import os
 from Bio import SeqIO
 import vcf
 import argparse
+import pathlib
 
 
 class BedLine:
@@ -56,35 +56,33 @@ def generate_amplicons(bedfile) -> dict[str, list[list[BedLine]]]:
 
 
 def create_or_find_cirular_scheme(
-    scheme_name: str, scheme_directory: str, scheme_version: str = "1"
-) -> tuple[str, str, int]:
+    scheme_directory: pathlib.Path, scheme_name: str, scheme_version: str
+) -> tuple[pathlib.Path, pathlib.Path, int]:
     """
     Returns:
-        cbed: str, path to the circular bed file
-        cref: str, path to the circular reference file
+        cbed: pathlib.Path, path to the circular bed file
+        cref: pathlib.Path, path to the circular reference file
         reflen: int, orginal length of the reference genome
     """
 
-    if scheme_name.find("/V") != -1:
-        scheme_name, scheme_version = scheme_name.split("/V")
-
     # Check if orignal bed and ref and found locally
-    bed = "%s/%s/V%s/%s.scheme.bed" % (
-        scheme_directory,
-        scheme_name,
-        scheme_version,
-        scheme_name,
+    bed = (
+        scheme_directory
+        / scheme_name
+        / f"{scheme_version}"
+        / f"{scheme_name}.scheme.bed"
     )
-    ref = "%s/%s/V%s/%s.reference.fasta" % (
-        scheme_directory,
-        scheme_name,
-        scheme_version,
-        scheme_name,
+    ref = (
+        scheme_directory
+        / scheme_name
+        / f"{scheme_version}"
+        / f"{scheme_name}.reference.fasta"
     )
-    if not os.path.exists(bed):
-        raise FileNotFoundError("Scheme not found at %s" % bed)
-    if not os.path.exists(ref):
-        raise FileNotFoundError("Reference not found at %s" % ref)
+
+    if not bed.is_file():
+        raise FileNotFoundError(f"Scheme not found at {bed}")
+    if not ref.is_file():
+        raise FileNotFoundError(f"Reference not found at {ref}")
 
     # Check if circular scheme already exists
     if scheme_version.endswith("C"):
@@ -93,12 +91,8 @@ def create_or_find_cirular_scheme(
         circular_version = scheme_version + "C"
 
     # Create the circular scheme directory
-    circular_version_dir = "%s/%s/V%s" % (
-        scheme_directory,
-        scheme_name,
-        circular_version,
-    )
-    os.makedirs(circular_version_dir, exist_ok=True)
+    circular_version_dir = scheme_directory / f"{scheme_name}/{circular_version}"
+    circular_version_dir.mkdir(parents=True, exist_ok=True)
 
     # Read in linear bedfile
     amplicons = generate_amplicons(bed)
@@ -112,11 +106,9 @@ def create_or_find_cirular_scheme(
         raise ValueError("No circular amplicons found")
 
     # Write circular ref
-    cref = "%s/%s/V%s/%s.reference.fasta" % (
-        scheme_directory,
-        scheme_name,
-        circular_version,
-        scheme_name,
+    cref = (
+        scheme_directory
+        / f"{scheme_name}/{circular_version}/{scheme_name}.reference.fasta"
     )
     refrecord = SeqIO.read(ref, "fasta")
     reflen = len(refrecord)
@@ -133,12 +125,10 @@ def create_or_find_cirular_scheme(
         SeqIO.write(refrecord, f, "fasta")
 
     # Write circular bed
-    cbed = "%s/%s/V%s/%s.scheme.bed" % (
-        scheme_directory,
-        scheme_name,
-        circular_version,
-        scheme_name,
+    cbed = (
+        scheme_directory / f"{scheme_name}/{circular_version}/{scheme_name}.scheme.bed"
     )
+
     bedfile_str = []
     for ampliconID, (lprimers, rprimers) in amplicons.items():
         # If left primer > right primer

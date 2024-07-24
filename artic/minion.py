@@ -6,6 +6,7 @@ import sys
 import time
 import requests
 import hashlib
+import pathlib
 from .vcftagprimersites import read_bed_file
 from .circular import create_or_find_cirular_scheme
 
@@ -22,7 +23,9 @@ def check_scheme_hashes(filepath, manifest_hash):
         raise SystemExit(1)
 
 
-def get_scheme(scheme_name, scheme_directory, scheme_version="1"):
+def get_scheme(
+    scheme_directory: pathlib.Path, scheme_name: str, scheme_version: str
+) -> tuple[pathlib.Path, pathlib.Path, str]:
     """Get and check the ARTIC primer scheme.
     When determining a version, the original behaviour (parsing the scheme_name and
     separating on /V ) is used over a specified scheme_version. If neither are
@@ -33,38 +36,37 @@ def get_scheme(scheme_name, scheme_directory, scheme_version="1"):
     ----------
     scheme_name : str
         The primer scheme name
-    scheme_directory : str
+    scheme_directory : pathlib.Path
         The directory containing the primer scheme and reference sequence
     scheme_version : str
         The primer scheme version (optional)
     Returns
     -------
-    str
+    pathlib.Path
         The location of the checked primer scheme
-    str
+    pathlib.Path
         The location of the checked reference sequence
     str
         The version being used
     """
-    # try getting the version from the scheme name (old behaviour)
-    if scheme_name.find("/V") != -1:
-        scheme_name, scheme_version = scheme_name.split("/V")
-
     # create the filenames and check they exist
-    bed = "%s/%s/V%s/%s.scheme.bed" % (
-        scheme_directory,
-        scheme_name,
-        scheme_version,
-        scheme_name,
+    bed: pathlib.Path = (
+        scheme_directory / scheme_name / scheme_version / f"{scheme_name}.scheme.bed"
     )
-    ref = "%s/%s/V%s/%s.reference.fasta" % (
-        scheme_directory,
-        scheme_name,
-        scheme_version,
-        scheme_name,
+    ref: pathlib.Path = (
+        scheme_directory
+        / scheme_name
+        / scheme_version
+        / f"{scheme_name}.reference.fasta"
     )
-    if os.path.exists(bed) and os.path.exists(ref):
+
+    if bed.is_file() and ref.is_file():
         return bed, ref, scheme_version
+
+    # Dont download
+
+    print(list(ref.parent.glob("*")))
+    raise SystemExit(2)
 
     # if they don't exist, try downloading them to the current directory
     print(
@@ -109,20 +111,20 @@ def get_scheme(scheme_name, scheme_directory, scheme_version="1"):
                     file=sys.stderr,
                 )
                 scheme_version = scheme_contents["latest_version"]
-                bed = "%s/%s/V%s/%s.scheme.bed" % (
-                    scheme_directory,
-                    scheme_name,
-                    scheme_version,
-                    scheme_name,
+                bed: pathlib.Path = (
+                    scheme_directory
+                    / scheme_name
+                    / scheme_version
+                    / f"{scheme_name}.scheme.bed"
                 )
-                ref = "%s/%s/V%s/%s.reference.fasta" % (
-                    scheme_directory,
-                    scheme_name,
-                    scheme_version,
-                    scheme_name,
+                ref: pathlib.Path = (
+                    scheme_directory
+                    / scheme_name
+                    / scheme_version
+                    / f"{scheme_name}.reference.fasta"
                 )
 
-            os.makedirs(os.path.dirname(bed), exist_ok=True)
+            bed.parent.mkdir(parents=True, exist_ok=True)
             with requests.get(scheme_contents["primer_urls"][scheme_version]) as fh:
                 open(bed, "wt").write(fh.text)
 
@@ -158,14 +160,30 @@ def run(parser, args):
 
     # 1) check the parameters and set up the filenames
     ## find the primer scheme, reference sequence and confirm scheme version
-    bed, ref, _ = get_scheme(args.scheme, args.scheme_directory, args.scheme_version)
+    bed, ref, _ = get_scheme(
+        args.scheme_directory, args.scheme_name, args.scheme_version
+    )
     if args.circular:
         lbed = bed
         lref = ref
         # if the circular flag is set, create the circular scheme and overwrite the bed and ref
         bed, ref, reflen = create_or_find_cirular_scheme(
-            args.scheme, args.scheme_directory, args.scheme_version
+            args.scheme_directory, args.scheme_name, args.scheme_version
         )
+
+    # 2) check the input and output files
+    bed = bed.absolute()
+    ref = ref.absolute()
+
+    output_dir: pathlib.Path = args.output.absolute()
+    try:
+        output_dir.mkdir(parents=True, exist_ok=False)
+    except FileExistsError:
+        print(
+            colored.red("output already exists: {}".format(output_dir)),
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
     ## if in strict mode, validate the primer scheme
     if args.strict:
@@ -176,16 +194,7 @@ def run(parser, args):
             raise SystemExit(1)
 
     ## set up the read file
-    if args.read_file:
-        read_file = args.read_file
-    else:
-        read_file = "%s.fasta" % (args.sample)
-    if not os.path.exists(read_file):
-        print(
-            colored.red("failed to find read-file: {}".format(read_file)),
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
+    read_files_str = " ".join([str(x.absolute()) for x in args.read_files])
 
     ## collect the primer pools
     pools = set([row["PoolName"] for row in read_bed_file(bed)])
@@ -193,215 +202,182 @@ def run(parser, args):
     ## create a holder to keep the pipeline commands in
     cmds = []
 
-    # 2) Nanopolish. Removed
-
     # 3) index the ref & align with minimap
+    all_sorted_bam = output_dir / f"{args.sample}.all.sorted.bam"  # All mapped reads
+    mappingstats = output_dir / f"{args.sample}.mappingstats.json"  # Mapping stats
+    sorted_bam = output_dir / f"{args.sample}.sorted.bam"  # Mapped reads
+
+    # aligntrim
+    alignreport_txt = output_dir / f"{args.sample}.alignreport.txt"
+    alignreport_er = output_dir / f"{args.sample}.alignreport.er"
+    trimmed_rg_sorted_bam = output_dir / f"{args.sample}.trimmed.rg.sorted.bam"
+    primertrimmed_rg_sorted_bam = (
+        output_dir / f"{args.sample}.primertrimmed.rg.sorted.bam"
+    )
+
     cmds.append(
-        "minimap2 -a -x map-ont -t %s %s %s | samtools sort -o %s.all.sorted.bam "
-        % (args.threads, ref, read_file, args.sample)
+        f"minimap2 -a -x map-ont -t {args.threads} {ref} {read_files_str} | samtools sort -o {all_sorted_bam}"
     )
     # get mapping stats
-    cmds.append(
-        "samtools flagstat %s.all.sorted.bam -O json > %s.mappingstats.json"
-        % (args.sample, args.sample)
-    )
+    cmds.append(f"samtools flagstat {all_sorted_bam} -O json > {mappingstats}")
     # Filter out unmapped reads then delete all.bam
     cmds.append(
-        "samtools view -bS -F 4 %s.all.sorted.bam > %s.sorted.bam && rm %s.all.sorted.bam"
-        % (args.sample, args.sample, args.sample)
+        f"samtools view -bS -F 4 {all_sorted_bam} > {sorted_bam} && rm {all_sorted_bam}"
     )
-    cmds.append("samtools index %s.sorted.bam" % (args.sample,))
+    cmds.append(f"samtools index {sorted_bam}")
 
     # 4) trim the alignments to the primer start sites and normalise the coverage to save time
     if args.normalise:
-        normalise_string = "--normalise %d" % (args.normalise)
+        normalise_string = f"--normalise {args.normalise}"
     else:
         normalise_string = ""
     cmds.append(
-        "align_trim %s %s --start --remove-incorrect-pairs --report %s.alignreport.txt < %s.sorted.bam 2> %s.alignreport.er | samtools sort -T %s - -o %s.trimmed.rg.sorted.bam"
-        % (
-            normalise_string,
-            bed,
-            args.sample,
-            args.sample,
-            args.sample,
-            args.sample,
-            args.sample,
-        )
+        f"align_trim {normalise_string} {bed} --start --remove-incorrect-pairs --report {alignreport_txt} < {sorted_bam} 2> {alignreport_er} | samtools sort -T {args.sample} - -o {trimmed_rg_sorted_bam}"
     )
     cmds.append(
-        "align_trim %s %s --remove-incorrect-pairs --report %s.alignreport.txt < %s.sorted.bam 2> %s.alignreport.er | samtools sort -T %s - -o %s.primertrimmed.rg.sorted.bam"
-        % (
-            normalise_string,
-            bed,
-            args.sample,
-            args.sample,
-            args.sample,
-            args.sample,
-            args.sample,
-        )
+        f"align_trim {normalise_string} {bed} --remove-incorrect-pairs --report {alignreport_txt} < {sorted_bam} 2> {alignreport_er} | samtools sort -T %s - -o {primertrimmed_rg_sorted_bam}"
     )
-    cmds.append("samtools index %s.trimmed.rg.sorted.bam" % (args.sample))
-    cmds.append("samtools index %s.primertrimmed.rg.sorted.bam" % (args.sample))
+    cmds.append(f"samtools index {trimmed_rg_sorted_bam}")
+    cmds.append(f"samtools index {primertrimmed_rg_sorted_bam}")
 
-    # 6) do variant calling on each read group, either using medaka
+    # 6) medaka. do variant calling on each read group, either using medaka
+    merge_vcf_files = []
     for p in pools:
-        if os.path.exists("%s.%s.hdf" % (args.sample, p)):
-            os.remove("%s.%s.hdf" % (args.sample, p))
+        _rg_hdf = output_dir / f"{args.sample}.{p}.hdf"
+        _rg_vcf = output_dir / f"{args.sample}.{p}.vcf"
+
+        if _rg_hdf.exists():
+            _rg_hdf.unlink()
         cmds.append(
-            "medaka consensus --model %s --threads %s --chunk_len 800 --chunk_ovlp 400 --RG %s %s.trimmed.rg.sorted.bam %s.%s.hdf"
-            % (args.medaka_model, args.threads, p, args.sample, args.sample, p)
+            f"medaka consensus --model {args.medaka_model} --threads {args.threads} --chunk_len 800 --chunk_ovlp 400 --RG {p} {primertrimmed_rg_sorted_bam} {_rg_hdf}"
         )
-        if args.no_indels:
-            cmds.append(
-                "medaka snp %s %s.%s.hdf %s.%s.vcf"
-                % (ref, args.sample, p, args.sample, p)
-            )
-        else:
-            cmds.append(
-                "medaka variant %s %s.%s.hdf %s.%s.vcf"
-                % (ref, args.sample, p, args.sample, p)
-            )
+        medaka_cmd = "snp" if args.no_indels else "variant"
+        cmds.append(f"medaka {medaka_cmd} {ref} {_rg_hdf} {_rg_vcf}")
 
         ## if not using longshot, annotate VCF with read depth info etc. so we can filter it
         if args.no_longshot:
             cmds.append(
-                "medaka tools annotate --pad 25 --RG %s %s.%s.vcf %s %s.trimmed.rg.sorted.bam tmp.medaka-annotate.vcf"
-                % (p, args.sample, p, ref, args.sample)
+                f"medaka tools annotate --pad 25 --RG {p} {_rg_vcf} {ref} {primertrimmed_rg_sorted_bam} {output_dir}/tmp.medaka-annotate.vcf"
             )
-            cmds.append("mv tmp.medaka-annotate.vcf %s.%s.vcf" % (args.sample, p))
+            cmds.append(f"mv {output_dir}/tmp.medaka-annotate.vcf {_rg_vcf}")
+
+        merge_vcf_files.append(f"{p}:{_rg_vcf}")
 
     # 7) merge the called variants for each read group
-    merge_vcf_cmd = "artic_vcf_merge %s %s 2> %s.primersitereport.txt" % (
-        args.sample,
-        bed,
-        args.sample,
-    )
-    for p in pools:
-        merge_vcf_cmd += " %s:%s.%s.vcf" % (p, args.sample, p)
+    primersitereport_txt = output_dir / f"{args.sample}.primersitereport.txt"
+    merged_vcf = output_dir / f"{args.sample}.merged.vcf"
+    primer_vcf = output_dir / f"{args.sample}.primer.vcf"
+
+    merged_filtered_vcf = output_dir / f"{args.sample}.merged.filtered.vcf"
+    vcfreport_txt = output_dir / f"{args.sample}.vcfreport.txt"
+
+    merge_vcf_cmd = f"artic_vcf_merge --output_merged {merged_vcf} --output_primer {primer_vcf} {args.sample} {bed} 2> {primersitereport_txt} {' '.join([str(x) for x in merge_vcf_files])}"
     cmds.append(merge_vcf_cmd)
 
     # 8) check and filter the VCFs
     ## if using strict, run the vcf checker to remove vars present only once in overlap regions (this replaces the original merged vcf from the previous step)
     if args.strict:
-        cmds.append("bgzip -f %s.merged.vcf" % (args.sample))
-        cmds.append("tabix -p vcf %s.merged.vcf.gz" % (args.sample))
+        cmds.append(f"bgzip -f {merged_vcf}")
+        cmds.append(f"tabix -p vcf {merged_vcf}.gz")
         cmds.append(
-            "artic-tools check_vcf --dropPrimerVars --dropOverlapFails --vcfOut %s.merged.filtered.vcf %s.merged.vcf.gz %s 2> %s.vcfreport.txt"
-            % (args.sample, args.sample, bed, args.sample)
+            f"artic-tools check_vcf --dropPrimerVars --dropOverlapFails --vcfOut {merged_filtered_vcf} {merged_vcf}.gz {bed} 2> {vcfreport_txt}"
         )
-        cmds.append(
-            "mv %s.merged.filtered.vcf %s.merged.vcf" % (args.sample, args.sample)
-        )
+        cmds.append(f"mv {merged_filtered_vcf} {merged_vcf}")
 
     ## if doing the medaka workflow and longshot required, do it on the merged VCF
     if args.medaka and not args.no_longshot:
-        cmds.append("bgzip -f %s.merged.vcf" % (args.sample))
-        cmds.append("tabix -f -p vcf %s.merged.vcf.gz" % (args.sample))
+        cmds.append(f"bgzip -f {merged_vcf}")
+        cmds.append(f"tabix -f -p vcf {merged_vcf}.gz")
         cmds.append(
-            "longshot -P 0 -F -A --no_haps --bam %s.primertrimmed.rg.sorted.bam --ref %s --out %s.merged.vcf --potential_variants %s.merged.vcf.gz"
-            % (args.sample, ref, args.sample, args.sample)
+            f"longshot -P 0 -F -A --no_haps --bam {primertrimmed_rg_sorted_bam} --ref {ref} --out {merged_vcf} --potential_variants {merged_vcf}.gz"
         )
 
     ## set up some name holder vars for ease
 
     method = "medaka"
 
-    vcf_file = "%s.pass.vcf" % (args.sample)
-    fail_vcf_file = "%s.fail.vcf" % (args.sample)
+    pass_vcf = output_dir / f"{args.sample}.pass.vcf"
+    fail_vcf = output_dir / f"{args.sample}.fail.vcf"
 
     ## filter the variants to produce PASS and FAIL lists, then index them
     if args.no_frameshifts and not args.no_indels:
         cmds.append(
-            "artic_vcf_filter --%s --no-frameshifts %s.merged.vcf %s %s "
-            % (method, args.sample, vcf_file, fail_vcf_file)
+            f"artic_vcf_filter --{method} --no-frameshifts {merged_vcf} {pass_vcf} {fail_vcf}"
         )
     else:
-        cmds.append(
-            "artic_vcf_filter --%s %s.merged.vcf %s %s"
-            % (method, args.sample, vcf_file, fail_vcf_file)
-        )
+        cmds.append(f"artic_vcf_filter  --{method} {merged_vcf} {pass_vcf} {fail_vcf}")
 
     # Modify the vcf.pass
     if args.circular:
+        pass_mod_vcf = pass_vcf.with_suffix(".mod.vcf")
+        fail_mod_vcf = fail_vcf.with_suffix(".mod.vcf")
         cmds.append(
-            "artic_circular parse-vcf --vcf %s --reference %s --output %s"
-            % (vcf_file, lref, vcf_file + ".mod.vcf")
+            f"artic_circular parse-vcf --vcf {pass_vcf} --reference {lref} --output {pass_mod_vcf}"
         )  # Writes vcf
-        vcf_file = vcf_file + ".mod.vcf"
+        pass_vcf = pass_mod_vcf
         cmds.append(
-            "artic_circular dedupe-vcf --pass-vcf %s --fail-vcf %s --lref %s --output %s"
-            % (vcf_file, fail_vcf_file, lref, fail_vcf_file + ".mod.vcf")
+            f"artic_circular dedupe-vcf --pass-vcf {pass_vcf} --fail-vcf {fail_vcf} --lref {lref} --output {fail_mod_vcf}"
         )  # Writes vcf
-        fail_vcf_file = fail_vcf_file + ".mod.vcf"
+        fail_vcf = fail_mod_vcf
 
-    cmds.append("bgzip -f %s" % (vcf_file))
-    cmds.append("tabix -p vcf %s.gz" % (vcf_file))
+    cmds.append(f"bgzip -f {pass_vcf}")
+    cmds.append(f"tabix -p vcf {pass_vcf}.gz")
 
     # 9) get the depth of coverage for each readgroup, create a coverage mask and plots, and add failed variants to the coverage mask (artic_mask must be run before bcftools consensus)
+    coverage_mask_txt = output_dir / f"{args.sample}.coverage_mask.txt"
+    preconsensus_fasta = output_dir / f"{args.sample}.preconsensus.fasta"
+
     if args.circular:
         # modulo the depth mask to turn circular indexing back into linear
         cmds.append(
-            "artic_make_depth_mask --store-rg-depths %s --de-circ-reflength %s %s.primertrimmed.rg.sorted.bam %s.coverage_mask.txt"
-            % (ref, reflen, args.sample, args.sample)
+            f"artic_make_depth_mask --store-rg-depths {ref} --de-circ-reflength {reflen} {primertrimmed_rg_sorted_bam} {coverage_mask_txt}"
         )
         cmds.append(
-            "artic_mask %s %s.coverage_mask.txt %s  %s.preconsensus.fasta"
-            % (lref, args.sample, fail_vcf_file, args.sample)
+            f"artic_mask {lref} {coverage_mask_txt} {fail_vcf} {preconsensus_fasta}"
         )
 
     else:
         cmds.append(
-            "artic_make_depth_mask --store-rg-depths %s %s.primertrimmed.rg.sorted.bam %s.coverage_mask.txt"
-            % (ref, args.sample, args.sample)
+            f"artic_make_depth_mask --store-rg-depths {ref}  {primertrimmed_rg_sorted_bam} {coverage_mask_txt}"
         )
         cmds.append(
-            "artic_mask %s %s.coverage_mask.txt %s %s.preconsensus.fasta"
-            % (ref, args.sample, fail_vcf_file, args.sample)
+            f"artic_mask {ref} {coverage_mask_txt} {fail_vcf} {preconsensus_fasta}"
         )
 
     # Create QC depth plots
     cmds.append(
-        "artic_make_depth_plot --depth %s.coverage_mask.txt.depths --min-depth 20 --output %s.coverage_mask.txt.depths"
-        % (args.sample, args.sample)
+        f"artic_make_depth_plot --depth {coverage_mask_txt}.depths --min-depth 20 --output {coverage_mask_txt}.depths"
     )
 
     # 10) generate the consensus sequence
+    consensus_fasta = output_dir / f"{args.sample}.consensus.fasta"
     cmds.append(
-        "bcftools consensus -f %s.preconsensus.fasta %s.gz -m %s.coverage_mask.txt -o %s.consensus.fasta"
-        % (args.sample, vcf_file, args.sample, args.sample)
+        f"bcftools consensus -f {preconsensus_fasta} {pass_vcf}.gz -m {coverage_mask_txt} -o {consensus_fasta}"
     )
 
     # 11) apply the header to the consensus sequence and run alignment against the reference sequence
-    fasta_header = "%s/ARTIC/%s" % (args.sample, method)
-    cmds.append(
-        'artic_fasta_header %s.consensus.fasta "%s"' % (args.sample, fasta_header)
-    )
-    cmds.append(
-        "cat %s.consensus.fasta %s > %s.muscle.in.fasta"
-        % (args.sample, lref, args.sample)
-    )
-    cmds.append(
-        "muscle -in %s.muscle.in.fasta -out %s.muscle.out.fasta"
-        % (args.sample, args.sample)
-    )
+    muscle_in_fasta = output_dir / f"{args.sample}.muscle.in.fasta"
+    muscle_out_fasta = output_dir / f"{args.sample}.muscle.out.fasta"
+
+    fasta_header = f"{args.sample}/ARTIC/{method}"
+    cmds.append(f"artic_fasta_header {consensus_fasta} '{fasta_header}'")
+    cmds.append(f"cat {consensus_fasta} {lref} > {muscle_in_fasta}")
+    cmds.append(f"muscle -in {muscle_in_fasta} -out {muscle_out_fasta}")
 
     # 12) get some QC stats
     if args.strict:
         cmds.append(
-            "artic_get_stats --scheme {} --align-report {}.alignreport.txt --vcf-report {}.vcfreport.txt {}".format(
-                bed, args.sample, args.sample, args.sample
-            )
+            f"artic_get_stats --scheme {bed} --align-report {alignreport_txt} --vcf-report {vcfreport_txt} {args.sample}"
         )
 
     # Create a qc tsv
+    qc_report = output_dir / f"{args.sample}.qc.report.tsv"
     cmds.append(
-        "artic_qc_report --mappingstats %s.mappingstats.json --consensus %s.consensus.fasta --output %s.qc.report.tsv"
-        % (args.sample, args.sample, args.sample)
+        f"artic_qc_report --mappingstats {mappingstats} --consensus {consensus_fasta} --output {qc_report}"
     )
 
     # 13) setup the log file and run the pipeline commands
-    log = "%s.minion.log.txt" % (args.sample)
+    log = output_dir / f"{args.sample}.minion.log.txt"
     logfh = open(log, "w")
     for cmd in cmds:
         print(colored.green("Running: ") + cmd, file=sys.stderr)
