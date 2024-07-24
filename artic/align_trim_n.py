@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-#Written by Nick Loman
-#Part of the ZiBRA pipeline (zibraproject.org)
+# Written by Nick Loman
+# Part of the ZiBRA pipeline (zibraproject.org)
 
 import pysam
 import sys
 from copy import copy
 from .align_trim import trim
-from collections import defaultdict
+
 
 def go(args):
     infile = pysam.AlignmentFile("-", "rb")
@@ -34,12 +34,19 @@ def go(args):
 
         outfile.write(s)
 
+
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description='Trim alignments from an amplicon scheme.')
-    parser.add_argument('nbases', type=int, help='Number of bases to trim from ends of full length alignments')
-    parser.add_argument('--verbose', action='store_true', help='Debug mode')
+    parser = argparse.ArgumentParser(
+        description="Trim alignments from an amplicon scheme."
+    )
+    parser.add_argument(
+        "nbases",
+        type=int,
+        help="Number of bases to trim from ends of full length alignments",
+    )
+    parser.add_argument("--verbose", action="store_true", help="Debug mode")
 
     args = parser.parse_args()
     go(args)
