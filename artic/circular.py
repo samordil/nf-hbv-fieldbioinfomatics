@@ -34,9 +34,19 @@ def generate_amplicons(bedfile) -> dict[str, list[list[BedLine]]]:
     bedlines: list[BedLine] = []
     with open(bedfile, "r") as infile:
         for line in infile:
-            if line:
-                splitline = line.strip().split("\t")
-                bedlines.append(BedLine(*splitline))
+            splitline = line.strip().split("\t")
+            if splitline:
+                bedlines.append(
+                    BedLine(
+                        chrom=splitline[0],
+                        start=splitline[1],
+                        end=splitline[2],
+                        primerid=splitline[3],
+                        pool=splitline[4],
+                        strand=splitline[5],
+                        seq=splitline[6],
+                    )
+                )
 
     # group bedlines by Amplicon_number
     amplicons = {}
@@ -55,8 +65,20 @@ def generate_amplicons(bedfile) -> dict[str, list[list[BedLine]]]:
     return amplicons
 
 
-def create_or_find_cirular_scheme(
-    scheme_directory: pathlib.Path, scheme_name: str, scheme_version: str
+def create_or_find_circular_scheme_cli(args):
+    create_or_find_circular_scheme(
+        args.bedfile,
+        args.ref,
+        args.output_primer,
+        args.output_reference,
+    )
+
+
+def create_or_find_circular_scheme(
+    bedfile_path: pathlib.Path,
+    ref_path: pathlib.Path,
+    output_primer: pathlib.Path,
+    output_reference: pathlib.Path,
 ) -> tuple[pathlib.Path, pathlib.Path, int]:
     """
     Returns:
@@ -66,36 +88,14 @@ def create_or_find_cirular_scheme(
     """
 
     # Check if orignal bed and ref and found locally
-    bed = (
-        scheme_directory
-        / scheme_name
-        / f"{scheme_version}"
-        / f"{scheme_name}.scheme.bed"
-    )
-    ref = (
-        scheme_directory
-        / scheme_name
-        / f"{scheme_version}"
-        / f"{scheme_name}.reference.fasta"
-    )
 
-    if not bed.is_file():
-        raise FileNotFoundError(f"Scheme not found at {bed}")
-    if not ref.is_file():
-        raise FileNotFoundError(f"Reference not found at {ref}")
-
-    # Check if circular scheme already exists
-    if scheme_version.endswith("C"):
-        raise ValueError("Please provide non-circular scheme version")
-    else:
-        circular_version = scheme_version + "C"
-
-    # Create the circular scheme directory
-    circular_version_dir = scheme_directory / f"{scheme_name}/{circular_version}"
-    circular_version_dir.mkdir(parents=True, exist_ok=True)
+    if not bedfile_path.is_file():
+        raise FileNotFoundError(f"Scheme not found at {bedfile_path}")
+    if not ref_path.is_file():
+        raise FileNotFoundError(f"Reference not found at {ref_path}")
 
     # Read in linear bedfile
-    amplicons = generate_amplicons(bed)
+    amplicons = generate_amplicons(bedfile_path)
     # Find circular amplicons
     circular_amplicons = []
     for ampliconID, (lprimers, rprimers) in amplicons.items():
@@ -106,11 +106,8 @@ def create_or_find_cirular_scheme(
         raise ValueError("No circular amplicons found")
 
     # Write circular ref
-    cref = (
-        scheme_directory
-        / f"{scheme_name}/{circular_version}/{scheme_name}.reference.fasta"
-    )
-    refrecord = SeqIO.read(ref, "fasta")
+    cref = output_reference
+    refrecord = SeqIO.read(ref_path, "fasta")
     reflen = len(refrecord)
     furthest_right = max(
         [rp.end for rp in (rps for lps, rps in circular_amplicons) for rp in rp]
@@ -125,9 +122,7 @@ def create_or_find_cirular_scheme(
         SeqIO.write(refrecord, f, "fasta")
 
     # Write circular bed
-    cbed = (
-        scheme_directory / f"{scheme_name}/{circular_version}/{scheme_name}.scheme.bed"
-    )
+    cbed = output_primer
 
     bedfile_str = []
     for ampliconID, (lprimers, rprimers) in amplicons.items():
@@ -257,6 +252,36 @@ def main():
         "-o", "--output", type=str, help="The output vcf file", required=True
     )
     de_dupe_vcf_parser.set_defaults(func=parse_fail_vcf)
+
+    # Create or find circular scheme
+    create_circular_parser = subparsers.add_parser(
+        "create-circular-scheme", help="Create a circular scheme"
+    )
+    create_circular_parser.add_argument(
+        "--bedfile",
+        type=pathlib.Path,
+        help="The bed file of the circular scheme",
+        required=True,
+    )
+    create_circular_parser.add_argument(
+        "--ref",
+        type=pathlib.Path,
+        help="The reference genome in fasta format",
+        required=True,
+    )
+    create_circular_parser.add_argument(
+        "--output-primer",
+        type=pathlib.Path,
+        help="The output bed file",
+        required=True,
+    )
+    create_circular_parser.add_argument(
+        "--output-reference",
+        type=pathlib.Path,
+        help="The output reference genome",
+        required=True,
+    )
+    create_circular_parser.set_defaults(func=create_or_find_circular_scheme)
 
     # Run
     args = global_parser.parse_args()

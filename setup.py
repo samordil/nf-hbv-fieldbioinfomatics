@@ -43,6 +43,7 @@ setup(
             "artic_circular=artic.circular:main",
             "artic_make_depth_plot=artic.make_depth_plot:main",
             "artic_qc_report=artic.qc_report:main",
+            "artic_reference_selection=artic.reference_selection:main",
         ],
     },
     author_email="n.j.loman@bham.ac.uk",

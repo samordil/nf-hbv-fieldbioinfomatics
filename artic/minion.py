@@ -8,7 +8,7 @@ import requests
 import hashlib
 import pathlib
 from .vcftagprimersites import read_bed_file
-from .circular import create_or_find_cirular_scheme
+from .circular import create_or_find_circular_scheme
 
 
 def check_scheme_hashes(filepath, manifest_hash):
@@ -21,6 +21,26 @@ def check_scheme_hashes(filepath, manifest_hash):
             file=sys.stderr,
         )
         raise SystemExit(1)
+
+
+def run_commands(cmds: list[str], dry_run: bool, logfile: pathlib.Path):
+    with open(logfile, "a") as logfh:
+        for cmd in cmds:
+            print(colored.green("Running: ") + cmd, file=sys.stderr)
+            if not dry_run:
+                timerStart = time.perf_counter()
+                retval = os.system(cmd)
+                if retval != 0:
+                    print(colored.red("Command failed:") + cmd, file=sys.stderr)
+                    raise SystemExit(20)
+                timerStop = time.perf_counter()
+
+                ## print the executed command and the runtime to the log file
+                print("{}\t{}".format(cmd, timerStop - timerStart), file=logfh)
+
+            ## if it's a dry run, print just the command
+            else:
+                print(cmd, file=logfh)
 
 
 def get_scheme(
@@ -158,24 +178,24 @@ def run(parser, args):
         )
         raise SystemExit(1)
 
+    ## create a holder to keep the pipeline commands in
+    cmds = []
+
     # 1) check the parameters and set up the filenames
     ## find the primer scheme, reference sequence and confirm scheme version
     bed, ref, _ = get_scheme(
         args.scheme_directory, args.scheme_name, args.scheme_version
     )
-    if args.circular:
-        lbed = bed
-        lref = ref
-        # if the circular flag is set, create the circular scheme and overwrite the bed and ref
-        bed, ref, reflen = create_or_find_cirular_scheme(
-            args.scheme_directory, args.scheme_name, args.scheme_version
-        )
 
     # 2) check the input and output files
     bed = bed.absolute()
     ref = ref.absolute()
 
+    ## set up the read file
+    read_files_str = " ".join([str(x.absolute()) for x in args.read_files])
     output_dir: pathlib.Path = args.output.absolute()
+    log = output_dir / f"{args.sample}.minion.log.txt"
+
     try:
         output_dir.mkdir(parents=True, exist_ok=False)
     except FileExistsError:
@@ -185,6 +205,61 @@ def run(parser, args):
         )
         raise SystemExit(1)
 
+    # Check for the best match is select-ref-file is provided
+    if args.select_ref_file is not None:
+        select_ref_cmds = []
+        if not args.select_ref_file.is_file():
+            print(
+                colored.red(
+                    f"The provided select-ref-file does not exist: {args.select_ref_file}"
+                ),
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
+        # Create the degapped reference file
+        degapped_fasta = output_dir / f"{args.sample}.degapped.fasta"
+        select_ref_cmds.append(
+            f"artic_reference_selection dealign --ref {args.select_ref_file} --outpath {degapped_fasta}"
+        )
+        # Map all reads to the degapped reference
+        all_ref_sorted_bam = output_dir / f"{args.sample}.all_ref.sorted.bam"
+        select_ref_cmds.append(
+            f"minimap2 -a -x map-ont -t {args.threads} {degapped_fasta} {read_files_str} | samtools sort -o {all_ref_sorted_bam}"
+        )
+        # Run samtools coverage on the degapped reference
+        reference_selection_coverage = (
+            output_dir / f"{args.sample}.reference_selection.coverage"
+        )
+        select_ref_cmds.append(
+            f"samtools coverage {all_ref_sorted_bam} > {reference_selection_coverage}"
+        )
+        # Remap the primer scheme to the best reference
+        remapped_bed = output_dir / f"{args.sample}.remapped.scheme.bed"
+        remapped_ref = output_dir / f"{args.sample}.remapped.reference.fasta"
+        select_ref_cmds.append(
+            f"artic_reference_selection remap --bedfile_path {bed} --msa_path {args.select_ref_file} --output_primer {remapped_bed} --output_reference {remapped_ref} --samtools_coverage {reference_selection_coverage}"
+        )
+        bed = remapped_bed
+        ref = remapped_ref
+        # Remove the degapped reference and the all_ref_sorted_bam
+        select_ref_cmds.append(f"rm {all_ref_sorted_bam} {degapped_fasta}")
+
+        # Run the select-ref-file commands
+        run_commands(select_ref_cmds, args.dry_run, log)
+
+    if args.circular:
+        lbed = bed
+        lref = ref
+
+        bed = output_dir / f"{args.sample}.circular.scheme.bed"
+        ref = output_dir / f"{args.sample}.circular.reference.fasta"
+
+        # if the circular flag is set, create the circular scheme and overwrite the bed and ref
+        _, _, reflen = create_or_find_circular_scheme(
+            bedfile_path=lbed, ref_path=lref, output_primer=bed, output_reference=ref
+        )
+
     ## if in strict mode, validate the primer scheme
     if args.strict:
         checkScheme = "artic-tools validate_scheme %s" % (bed)
@@ -193,14 +268,8 @@ def run(parser, args):
             print(colored.red("primer scheme failed strict checking"), file=sys.stderr)
             raise SystemExit(1)
 
-    ## set up the read file
-    read_files_str = " ".join([str(x.absolute()) for x in args.read_files])
-
     ## collect the primer pools
     pools = set([row["PoolName"] for row in read_bed_file(bed)])
-
-    ## create a holder to keep the pipeline commands in
-    cmds = []
 
     # 3) index the ref & align with minimap
     all_sorted_bam = output_dir / f"{args.sample}.all.sorted.bam"  # All mapped reads
@@ -377,22 +446,4 @@ def run(parser, args):
     )
 
     # 13) setup the log file and run the pipeline commands
-    log = output_dir / f"{args.sample}.minion.log.txt"
-    logfh = open(log, "w")
-    for cmd in cmds:
-        print(colored.green("Running: ") + cmd, file=sys.stderr)
-        if not args.dry_run:
-            timerStart = time.perf_counter()
-            retval = os.system(cmd)
-            if retval != 0:
-                print(colored.red("Command failed:") + cmd, file=sys.stderr)
-                raise SystemExit(20)
-            timerStop = time.perf_counter()
-
-            ## print the executed command and the runtime to the log file
-            print("{}\t{}".format(cmd, timerStop - timerStart), file=logfh)
-
-        ## if it's a dry run, print just the command
-        else:
-            print(cmd, file=logfh)
-    logfh.close()
+    run_commands(cmds, args.dry_run, log)

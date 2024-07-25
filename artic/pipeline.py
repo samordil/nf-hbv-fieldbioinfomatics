@@ -200,7 +200,9 @@ def init_pipeline_parser():
         type=pathlib.Path,
     )
     parser_minion.add_argument(
-        "--clair3", action="store_true", help="Use Clair3 for variant calling"
+        "--select-ref-file",
+        type=pathlib.Path,
+        help="A file containing mutliple aligned references, the closest will be selected. The index genome of the primerscheme should be contained",
     )
     parser_minion.set_defaults(func=run_subtool)
 
