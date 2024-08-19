@@ -1,5 +1,7 @@
 # HBV-fieldbioinfomatics
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13341402.svg)](https://doi.org/10.5281/zenodo.13341402)
+
 This project is a custom fork of fieldbioinfomatics, to enable the analysis of circular genomes and corresponding circular primer schemes, such as HBV. 
 
 Due to time constraints this mode has only been applied/tested for one running mode;
