@@ -10,8 +10,8 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=sodoyo@kemri-wellcome.org
 
-export NXF_WORK=/scratch/$USER/nxf_work
-export TMPDIR=/scratch/$USER/tmp
+export NXF_WORK=/scratch/hbv_nxf_work
+export TMPDIR=/scratch/hbv_tmp
 mkdir -p "$NXF_WORK" "$TMPDIR"
 
 # Activate existing conda environment

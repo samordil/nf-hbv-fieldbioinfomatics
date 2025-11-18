@@ -13,9 +13,9 @@ Output is written as a new CSV file with the same columns as the input
 plus the additional `fastq_path` column.
 """
 
-import os
 import csv
 import argparse
+from pathlib import Path
 
 
 def match_fastq_paths(csv_file, fastq_dir, output_file, match_column):
@@ -38,32 +38,61 @@ def match_fastq_paths(csv_file, fastq_dir, output_file, match_column):
     None
         Writes a new CSV file with an additional `fastq_path` column.
     """
+    # Convert to Path objects
+    csv_path = Path(csv_file)
+    fastq_path = Path(fastq_dir)
+    output_path = Path(output_file)
+
+    # Verify FASTQ directory exists
+    if not fastq_path.exists():
+        raise ValueError(f"FASTQ directory does not exist: {fastq_path}")
+    if not fastq_path.is_dir():
+        raise ValueError(f"FASTQ path is not a directory: {fastq_path}")
+
     # Open and read the input CSV into memory
-    with open(csv_file, newline='') as infile:
+    with csv_path.open(newline='') as infile:
         reader = csv.DictReader(infile)
         rows = list(reader)
 
-    # Collect all FASTQ filenames in the directory
-    fastq_files = [f for f in os.listdir(fastq_dir) if f.endswith((".fastq", ".fastq.gz"))]
+    # Collect all FASTQ files in the directory with debugging
+    fastq_files = []
+    for f in fastq_path.iterdir():
+        if f.is_file() and (f.suffix in ('.fastq', '.gz') or f.name.endswith(('.fastq.gz', '.fq.gz'))):
+            fastq_files.append(f)
+    
+    print(f"Found {len(fastq_files)} FASTQ files in {fastq_path}")
+    print("FASTQ files found:")
+    for f in fastq_files:
+        print(f"  - {f.name}")
 
-    # Match rows to FASTQ files
+    # Match rows to FASTQ files with detailed debugging
     for row in rows:
         key = row[match_column]
         matched_file = None
+        
+        print(f"\nLooking for sample ID: '{key}'")
+        
         # Find the first FASTQ file containing the key in its name
         for f in fastq_files:
-            if key in f:
-                matched_file = os.path.abspath(os.path.join(fastq_dir, f))
+            if key in f.name:
+                matched_file = f.resolve()  # Get absolute path
+                print(f"  MATCH: '{key}' found in '{f.name}'")
                 break
+            else:
+                print(f"  No match: '{key}' not in '{f.name}'")
+        
         # Add the result (absolute path or "NOT_FOUND") as a new column
-        row["fastq_path"] = matched_file if matched_file else "NOT_FOUND"
+        row["fastq_path"] = str(matched_file) if matched_file else "NOT_FOUND"
+        print(f"  Result: {row['fastq_path']}")
 
     # Write the updated data to a new CSV file
     fieldnames = list(rows[0].keys())
-    with open(output_file, "w", newline="") as outfile:
+    with output_path.open("w", newline="") as outfile:
         writer = csv.DictWriter(outfile, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+    
+    print(f"\nOutput written to: {output_path}")
 
 
 def main():
@@ -85,3 +114,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
