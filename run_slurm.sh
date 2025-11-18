@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=hbv
-#SBATCH --partition=ncpu
+#SBATCH --partition=highmem
 #SBATCH --ntasks=2
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=4G
@@ -8,14 +8,14 @@
 #SBATCH -o job.%j.out
 #SBATCH -e job.%j.err
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=user@email.com
+#SBATCH --mail-user=sodoyo@kemri-wellcome.org
 
 export NXF_WORK=/scratch/$USER/nxf_work
 export TMPDIR=/scratch/$USER/tmp
 mkdir -p "$NXF_WORK" "$TMPDIR"
 
 # Activate existing conda environment
-source ~/Tools/miniforge3/etc/profile.d/conda.sh
+source ~/miniforge3/etc/profile.d/conda.sh
 conda activate hbv-artic
 
 # Run the pipeline
