@@ -6,7 +6,7 @@ nextflow.enable.dsl=2
 include { GENERATE_SAMPLESHEET   } from "./modules/local/generate_samplesheet"
 include { ARTIC_MINION           } from "./modules/local/artic_minion.nf"
 include { ASSEMBLY_STATS         } from "./modules/local/assembly_summary"
-
+include { RENAME_FASTA_HEADERS   } from "./modules/local/rename_fasta_headers"
 
 // Define input channel for a csv samplesheet file
 channel.fromPath(params.samplesheet_csv)
@@ -52,6 +52,12 @@ workflow {
 	ch_multi_ref_file,
         ch_fastq_samplesheet      // [sample_id, fastq_path]
         )
+
+    // Add python script to rename fasta headers
+    RENAME_FASTA_HEADERS (
+        ARTIC_MINION.out.tsv.map{ it[1]}.collect(),
+        ch_samplesheet_csv
+    )
 
     // Generate assembly stats
     ASSEMBLY_STATS (

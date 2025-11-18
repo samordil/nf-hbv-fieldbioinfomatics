@@ -1,5 +1,4 @@
 process GENERATE_SAMPLESHEET {
-    publishDir "${params.outDir}/assembly", mode:'copy'
     tag "samplesheet generation"
     label 'process_single'
     label 'error_ignore'

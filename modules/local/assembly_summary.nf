@@ -1,6 +1,5 @@
 process ASSEMBLY_STATS {
-    publishDir "${params.outDir}/assembly", mode:'copy'
-    tag "Assembly stats"
+    tag "generate assembly stats"
     label 'process_single'
     label 'error_ignore'
 

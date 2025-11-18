@@ -1,0 +1,4 @@
+sample_id,sample_name,group,user,project_id,project_limsid,project_type,reference_genome,data_analysis_type,barcode,run_id,date
+DEL8152A1,AB76,matthewsp,marion.delphin,DN25224,DEL8152,Amplicons,Other,,SQK-NBD114-96_barcode01,run1,2025-06-26
+DEL8152A2,AB83,matthewsp,marion.delphin,DN25224,DEL8152,Amplicons,Other,,SQK-NBD114-96_barcode02,run2,2025-06-27
+DEL8152A5,AS88,matthewsp,marion.delphin,DN25224,DEL8152,Amplicons,Other,,SQK-NBD114-96_barcode05,run3,2025-06-28

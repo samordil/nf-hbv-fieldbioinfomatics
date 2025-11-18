@@ -1,6 +1,6 @@
 process ARTIC_MINION {
-    publishDir "${params.outDir}/assembly", mode:'copy'
     tag "assembling $sample_id"
+    label 'process_medium'
     errorStrategy 'ignore'
 
     input:
