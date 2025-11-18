@@ -8,14 +8,13 @@ process RENAME_FASTA_HEADERS {
         path metadata_csv
 
     output:
-        path "renamed_fasta/*.fasta"    , emit: fasta
+        path "fasta_dir/*.fasta"    , emit: fasta
 
     script:     // This script is bundled with the pipeline, in bin
     """
     rename_fasta_headers.py \\
         --fastas $fasta_file \\
         --csv $metadata_csv \\
-        --output_dir renamed_fastas \\
-        --overwrite
+        --output_dir fasta_dir
     """
 }

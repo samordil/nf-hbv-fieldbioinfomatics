@@ -3,9 +3,9 @@
 Rename FASTA headers using metadata from a CSV.
 
 Headers are updated to:
-    >sample_id/ARTIC/medaka/run_id/date
+    >sample_name/ARTIC/medaka/run_id/date
 
-- Reads `run_id` and `date` from the CSV (sample_id must match filename prefix).
+- Reads `run_id` and `date` from the CSV (sample_name must match filename prefix).
 - Normalizes date to ISO (YYYY-MM-DD).
 - Handles many files efficiently (streamed I/O).
 - Safe for HPC use (no shell calls, idempotent).
@@ -19,12 +19,12 @@ from Bio import SeqIO
 
 
 def load_metadata(csv_file: Path):
-    """Load metadata keyed by sample_id, normalizing dates."""
+    """Load metadata keyed by sample_name, normalizing dates."""
     metadata = {}
     with csv_file.open(newline='', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            sample_id = row["sample_id"].strip()
+            sample_name = row["sample_name"].strip()
             run_id = row["run_id"].strip()
             raw_date = row["date"].strip()
 
@@ -36,7 +36,7 @@ def load_metadata(csv_file: Path):
                 except ValueError:
                     pass
 
-            metadata[sample_id] = {"run_id": run_id, "date": raw_date}
+            metadata[sample_name] = {"run_id": run_id, "date": raw_date}
     return metadata
 
 
@@ -51,17 +51,17 @@ def rename_fasta_headers(fasta_files, metadata, output_dir: Path, overwrite=Fals
             print(f"File not found: {fasta_path}")
             continue
 
-        sample_id = fasta_path.stem.split(".")[0]
-        if sample_id not in metadata:
-            print(f"No metadata for {sample_id}, skipping.")
+        sample_name = fasta_path.stem.split(".")[0]
+        if sample_name not in metadata:
+            print(f"No metadata for {sample_name}, skipping.")
             continue
 
-        run_id, date = metadata[sample_id]["run_id"], metadata[sample_id]["date"]
+        run_id, date = metadata[sample_name]["run_id"], metadata[sample_name]["date"]
         output_path = fasta_path if overwrite else output_dir / fasta_path.name
 
         records = []
         for record in SeqIO.parse(fasta_path, "fasta"):
-            record.id = f"{sample_id}/ARTIC/medaka/{run_id}/{date}"
+            record.id = f"{sample_name}/ARTIC/medaka/{run_id}/{date}"
             record.description = ""
             records.append(record)
 
@@ -72,7 +72,7 @@ def rename_fasta_headers(fasta_files, metadata, output_dir: Path, overwrite=Fals
 
 def main():
     parser = argparse.ArgumentParser(description="Rename FASTA headers using CSV metadata.")
-    parser.add_argument("-c", "--csv", required=True, type=Path, help="CSV with sample_id, run_id, date.")
+    parser.add_argument("-c", "--csv", required=True, type=Path, help="CSV with sample_name, run_id, date.")
     parser.add_argument("-f", "--fastas", required=True, nargs="+", type=Path, help="FASTA files (supports wildcards).")
     parser.add_argument("-o", "--output_dir", default=Path("renamed_fastas"), type=Path, help="Output directory.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite original files.")

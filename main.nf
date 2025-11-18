@@ -55,7 +55,7 @@ workflow {
 
     // Add python script to rename fasta headers
     RENAME_FASTA_HEADERS (
-        ARTIC_MINION.out.tsv.map{ it[1]}.collect(),
+        ARTIC_MINION.out.fasta.map{ it[1]}.collect(),
         ch_samplesheet_csv
     )
 
